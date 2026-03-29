@@ -10,6 +10,12 @@ module loot_box::loot_box {
     use sui::sui::SUI;
     use sui::random;
     use sui::event;
+    use sui::package;
+
+    const E_INVALID_PUBLISHER: u64 = 2;
+
+    /// One-time witness used to claim a single Publisher capability.
+    public struct LOOT_BOX has drop {}
 
     /// -------------------------------
     /// STRUCTS
@@ -23,6 +29,7 @@ module loot_box::loot_box {
         id: UID,
         treasury: u64,
         treasury_owner: address,
+        initialized: bool,
         price: u64,
         common_weight: u8,
         rare_weight: u8,
@@ -127,11 +134,17 @@ module loot_box::loot_box {
         rarity_from_roll(rand, common_weight, rare_weight, epic_weight)
     }
 
+    fun init(witness: LOOT_BOX, ctx: &mut TxContext) {
+        package::claim_and_keep<LOOT_BOX>(witness, ctx);
+    }
+
     /// -------------------------------
     /// INIT GAME
     /// -------------------------------
 
-    public entry fun init_game(ctx: &mut TxContext) {
+    public entry fun init_game(publisher: package::Publisher, ctx: &mut TxContext) {
+        assert!(package::from_module<LOOT_BOX>(&publisher), E_INVALID_PUBLISHER);
+
         let admin = AdminCap {
             id: object::new(ctx),
         };
@@ -140,6 +153,7 @@ module loot_box::loot_box {
             id: object::new(ctx),
             treasury: 0,
             treasury_owner: tx_context::sender(ctx),
+            initialized: true,
             price: 100,
             common_weight: 60,
             rare_weight: 25,
@@ -147,6 +161,7 @@ module loot_box::loot_box {
             legendary_weight: 3,
         };
 
+        package::burn_publisher(publisher);
         transfer::transfer(admin, tx_context::sender(ctx));
         transfer::share_object(config);
     }
@@ -160,6 +175,7 @@ module loot_box::loot_box {
         mut payment: Coin<SUI>,
         ctx: &mut TxContext
     ) {
+        assert!(config.initialized, 0);
         let value = coin::value(&payment);
         assert!(value >= config.price, 0);
 
@@ -215,6 +231,7 @@ module loot_box::loot_box {
         r: &random::Random,
         ctx: &mut TxContext
     ) {
+        assert!(config.initialized, 0);
         // Create randomness generator from shared Random object
         let mut gen = random::new_generator(r, ctx);
         let rand = random::generate_u8_in_range(&mut gen, 0, 99);
@@ -274,6 +291,107 @@ module loot_box::loot_box {
 
     public fun get_item_name(item: &GameItem): vector<u8> {
         copy item.name
+    }
+
+    #[test_only]
+    public fun publisher_for_testing(ctx: &mut TxContext): package::Publisher {
+        package::claim<LOOT_BOX>(LOOT_BOX {}, ctx)
+    }
+
+    #[test_only]
+    public fun config_for_testing(price: u64, treasury_owner: address, ctx: &mut TxContext): GameConfig {
+        GameConfig {
+            id: object::new(ctx),
+            treasury: 0,
+            treasury_owner,
+            initialized: true,
+            price,
+            common_weight: 60,
+            rare_weight: 25,
+            epic_weight: 12,
+            legendary_weight: 3,
+        }
+    }
+
+    #[test_only]
+    public fun treasury_for_testing(config: &GameConfig): u64 {
+        config.treasury
+    }
+
+    #[test_only]
+    public fun destroy_config_for_testing(config: GameConfig) {
+        let GameConfig {
+            id,
+            treasury: _,
+            treasury_owner: _,
+            initialized: _,
+            price: _,
+            common_weight: _,
+            rare_weight: _,
+            epic_weight: _,
+            legendary_weight: _,
+        } = config;
+        object::delete(id);
+    }
+
+    #[test_only]
+    public fun purchase_loot_box_mock(config: &mut GameConfig, payment: Coin<SUI>, ctx: &mut TxContext): LootBox {
+        let value = coin::value(&payment);
+        assert!(value >= config.price, 0);
+        coin::destroy_zero(payment);
+
+        config.treasury = config.treasury + config.price;
+
+        LootBox {
+            id: object::new(ctx),
+        }
+    }
+
+    #[test_only]
+    public fun open_loot_box_mock(
+        lootbox: LootBox,
+        config: &GameConfig,
+        rand: u8,
+        ctx: &mut TxContext,
+    ): GameItem {
+        let rarity = rarity_from_roll(
+            rand,
+            config.common_weight,
+            config.rare_weight,
+            config.epic_weight,
+        );
+
+        let power = if (rarity == 0) {
+            1
+        } else if (rarity == 1) {
+            11
+        } else if (rarity == 2) {
+            26
+        } else {
+            41
+        };
+
+        let name = if (rarity == 0) {
+            b"P250 Sand Dune"
+        } else if (rarity == 1) {
+            b"AK-47 Redline"
+        } else if (rarity == 2) {
+            b"M4A1-S Printstream"
+        } else {
+            b"AWP Dragon Lore"
+        };
+
+        let item = GameItem {
+            id: object::new(ctx),
+            rarity,
+            power,
+            name,
+        };
+
+        let LootBox { id } = lootbox;
+        object::delete(id);
+
+        item
     }
 
     /// -------------------------------
