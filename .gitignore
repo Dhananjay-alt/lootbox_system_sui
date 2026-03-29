@@ -1,0 +1,11 @@
+build/*
+traces/*
+.trace
+.coverage*
+Pub.*.toml
+node_modules/
+dist/
+.env
+*.log
+target/
+build/

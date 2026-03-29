@@ -1,0 +1,56 @@
+body {
+  font-family: Arial, sans-serif;
+  background: #0f172a;
+  color: white;
+  text-align: center;
+}
+
+.container {
+  padding: 20px;
+}
+
+.buttons button {
+  margin: 10px;
+  padding: 10px 20px;
+  font-size: 16px;
+}
+
+.loading {
+  font-size: 20px;
+  color: yellow;
+}
+
+.result {
+  margin: 20px auto;
+  padding: 20px;
+  width: 200px;
+  border-radius: 10px;
+}
+
+.history {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.card {
+  margin: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  width: 100px;
+}
+
+/* Rarity Colors */
+.common {
+  background: gray;
+}
+.rare {
+  background: blue;
+}
+.epic {
+  background: purple;
+}
+.legendary {
+  background: gold;
+  color: black;
+}
